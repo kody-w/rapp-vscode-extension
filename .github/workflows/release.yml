@@ -1,0 +1,46 @@
+name: Build and publish extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'media/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run compile
+
+      - name: Package extension
+        run: npx vsce package --no-dependencies --out docs/rapp-brainstem.vsix --allow-missing-repository
+
+      - name: Commit rebuilt .vsix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/rapp-brainstem.vsix
+          if git diff --staged --quiet; then
+            echo "No change to docs/rapp-brainstem.vsix."
+          else
+            git commit -m "ci: rebuild rapp-brainstem.vsix"
+            git push
+          fi

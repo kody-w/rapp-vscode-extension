@@ -6,6 +6,8 @@
   "publisher": "rapp",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Visualization", "Other"],
+  "repository": { "type": "git", "url": "https://github.com/kody-w/rapp-vscode-extension" },
+  "homepage": "https://kody-w.github.io/rapp-vscode-extension/",
   "main": "./out/extension.js",
   "activationEvents": [],
   "contributes": {
