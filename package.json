@@ -1,0 +1,121 @@
+{
+  "name": "rapp-brainstem",
+  "displayName": "RAPP Brainstem",
+  "description": "The RAPP surface for VS Code. Renders HTML and Markdown as pages, embeds the live brainstem UI, and surfaces every hatched twin as its own tab. Built for non-technical RAPP users.",
+  "version": "0.1.0",
+  "publisher": "rapp",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Visualization", "Other"],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "rappBrainstem.htmlPreview",
+        "displayName": "RAPP Page Preview",
+        "selector": [
+          { "filenamePattern": "*.html" },
+          { "filenamePattern": "*.htm" }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "rappBrainstem.markdownPreview",
+        "displayName": "RAPP Page Preview",
+        "selector": [
+          { "filenamePattern": "*.md" },
+          { "filenamePattern": "*.markdown" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      { "command": "rappBrainstem.showSource",        "title": "Show Source",                "category": "RAPP" },
+      { "command": "rappBrainstem.showPreview",       "title": "Show Page Preview",          "category": "RAPP" },
+      { "command": "rappBrainstem.bootBrainstem",     "title": "Boot Brainstem",             "category": "RAPP" },
+      { "command": "rappBrainstem.installBrainstem",  "title": "Install Brainstem (one-liner)", "category": "RAPP" },
+      { "command": "rappBrainstem.openInBrowser",     "title": "Open Brainstem in Browser",  "category": "RAPP" },
+      { "command": "rappBrainstem.refreshTwins",      "title": "Refresh Twins",              "category": "RAPP", "icon": "$(refresh)" },
+      { "command": "rappBrainstem.openTwin",          "title": "Open Twin",                  "category": "RAPP", "icon": "$(window)" },
+      { "command": "rappBrainstem.bootTwin",          "title": "Boot Twin",                  "category": "RAPP", "icon": "$(play)" },
+      { "command": "rappBrainstem.stopTwin",          "title": "Stop Twin",                  "category": "RAPP", "icon": "$(debug-stop)" },
+      { "command": "rappBrainstem.revealTwinFolder",  "title": "Reveal Twin Folder",         "category": "RAPP", "icon": "$(folder-opened)" },
+      { "command": "rappBrainstem.hatchTwin",         "title": "Hatch as RAPP Twin",         "category": "RAPP", "icon": "$(add)" }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "rappBrainstem.showSource",
+          "when": "activeCustomEditorId == rappBrainstem.htmlPreview || activeCustomEditorId == rappBrainstem.markdownPreview",
+          "group": "navigation"
+        },
+        {
+          "command": "rappBrainstem.showPreview",
+          "when": "resourceExtname == .html || resourceExtname == .htm || resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        { "command": "rappBrainstem.hatchTwin",    "when": "view == rappBrainstem.twinTree", "group": "navigation@1" },
+        { "command": "rappBrainstem.refreshTwins", "when": "view == rappBrainstem.twinTree", "group": "navigation@2" }
+      ],
+      "view/item/context": [
+        { "command": "rappBrainstem.openTwin",         "when": "view == rappBrainstem.twinTree && viewItem =~ /^twin-/",       "group": "inline@1" },
+        { "command": "rappBrainstem.bootTwin",         "when": "view == rappBrainstem.twinTree && viewItem == twin-stopped",   "group": "inline@2" },
+        { "command": "rappBrainstem.stopTwin",         "when": "view == rappBrainstem.twinTree && viewItem == twin-running",   "group": "inline@2" },
+        { "command": "rappBrainstem.revealTwinFolder", "when": "view == rappBrainstem.twinTree && viewItem =~ /^twin-/",       "group": "context@1" },
+        { "command": "rappBrainstem.stopTwin",         "when": "view == rappBrainstem.twinTree && viewItem == twin-running",   "group": "context@2" }
+      ],
+      "explorer/context": [
+        { "command": "rappBrainstem.hatchTwin", "when": "explorerResourceIsFolder", "group": "rapp@1" }
+      ],
+      "commandPalette": [
+        { "command": "rappBrainstem.openTwin",         "when": "false" },
+        { "command": "rappBrainstem.bootTwin",         "when": "false" },
+        { "command": "rappBrainstem.stopTwin",         "when": "false" },
+        { "command": "rappBrainstem.revealTwinFolder", "when": "false" }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "rappBrainstem", "title": "RAPP Brainstem", "icon": "media/brain.svg" }
+      ]
+    },
+    "views": {
+      "rappBrainstem": [
+        { "type": "tree",    "id": "rappBrainstem.twinTree",      "name": "Twins" },
+        { "type": "webview", "id": "rappBrainstem.brainstemView", "name": "Brainstem" }
+      ]
+    },
+    "configuration": {
+      "title": "RAPP Brainstem",
+      "properties": {
+        "rappBrainstem.port": {
+          "type": "number",
+          "default": 7071,
+          "description": "Port the global brainstem server listens on."
+        },
+        "rappBrainstem.brainstemPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the rapp_brainstem directory (relative to workspace or absolute). Empty = autodetect."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.0.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "markdown-it": "^14.0.0"
+  }
+}
