@@ -34,6 +34,7 @@
     "commands": [
       { "command": "rappBrainstem.showSource",        "title": "Show Source",                "category": "RAPP" },
       { "command": "rappBrainstem.showPreview",       "title": "Show Page Preview",          "category": "RAPP" },
+      { "command": "rappBrainstem.openBrainstem",     "title": "Open Brainstem",             "category": "RAPP", "icon": "$(comment-discussion)" },
       { "command": "rappBrainstem.bootBrainstem",     "title": "Boot Brainstem",             "category": "RAPP" },
       { "command": "rappBrainstem.installBrainstem",  "title": "Install Brainstem (one-liner)", "category": "RAPP" },
       { "command": "rappBrainstem.openInBrowser",     "title": "Open Brainstem in Browser",  "category": "RAPP" },
@@ -58,8 +59,9 @@
         }
       ],
       "view/title": [
-        { "command": "rappBrainstem.hatchTwin",    "when": "view == rappBrainstem.twinTree", "group": "navigation@1" },
-        { "command": "rappBrainstem.refreshTwins", "when": "view == rappBrainstem.twinTree", "group": "navigation@2" }
+        { "command": "rappBrainstem.openBrainstem", "when": "view == rappBrainstem.twinTree", "group": "navigation@0" },
+        { "command": "rappBrainstem.hatchTwin",     "when": "view == rappBrainstem.twinTree", "group": "navigation@1" },
+        { "command": "rappBrainstem.refreshTwins",  "when": "view == rappBrainstem.twinTree", "group": "navigation@2" }
       ],
       "view/item/context": [
         { "command": "rappBrainstem.openTwin",         "when": "view == rappBrainstem.twinTree && viewItem =~ /^twin-/",       "group": "inline@1" },
@@ -85,8 +87,7 @@
     },
     "views": {
       "rappBrainstem": [
-        { "type": "tree",    "id": "rappBrainstem.twinTree",      "name": "Twins" },
-        { "type": "webview", "id": "rappBrainstem.brainstemView", "name": "Brainstem" }
+        { "type": "tree", "id": "rappBrainstem.twinTree", "name": "Twins" }
       ]
     },
     "configuration": {

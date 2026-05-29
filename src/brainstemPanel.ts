@@ -1,36 +1,77 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
-import { bootBrainstem } from './brainstemBoot';
+import { bootBrainstem, offerOneLinerInstall } from './brainstemBoot';
 
-export class BrainstemViewProvider implements vscode.WebviewViewProvider {
-    async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
-        view.webview.options = { enableScripts: true };
+let panel: vscode.WebviewPanel | undefined;
+let extensionUri: vscode.Uri | undefined;
 
-        const port = vscode.workspace
-            .getConfiguration('rappBrainstem')
-            .get<number>('port', 7071);
-        const url = `http://localhost:${port}`;
+export function initBrainstemPanel(uri: vscode.Uri): void {
+    extensionUri = uri;
+}
 
-        const render = async () => {
-            const up = await probeBrainstem(port);
-            view.webview.html = up ? embedShell(url) : downShell(url);
-        };
+interface OpenOpts {
+    preserveFocus?: boolean;
+}
 
-        view.webview.onDidReceiveMessage(async (msg) => {
-            if (msg?.type === 'boot') {
-                await bootBrainstem();
-                view.webview.html = bootingShell(url);
-                await waitForBrainstem(port, 30000);
-                await render();
-            } else if (msg?.type === 'open') {
-                await vscode.env.openExternal(vscode.Uri.parse(url));
-            } else if (msg?.type === 'recheck') {
-                await render();
-            }
-        });
-
-        await render();
+export async function openBrainstemPanel(opts: OpenOpts = {}): Promise<vscode.WebviewPanel> {
+    const column = vscode.ViewColumn.Active;
+    if (panel) {
+        panel.reveal(column, opts.preserveFocus ?? false);
+        return panel;
     }
+    panel = vscode.window.createWebviewPanel(
+        'rappBrainstem.brainstem',
+        'RAPP Brainstem',
+        { viewColumn: column, preserveFocus: opts.preserveFocus ?? false },
+        { enableScripts: true, retainContextWhenHidden: true }
+    );
+    if (extensionUri) {
+        const iconUri = vscode.Uri.joinPath(extensionUri, 'media', 'brain.svg');
+        panel.iconPath = iconUri;
+    }
+    panel.onDidDispose(() => { panel = undefined; });
+    panel.webview.onDidReceiveMessage(async (msg) => {
+        if (!panel) return;
+        if (msg?.type === 'boot') {
+            await bootBrainstem();
+            await renderPanel(panel, 'booting');
+            await waitForBrainstem(currentPort(), 30000);
+            await renderPanel(panel);
+        } else if (msg?.type === 'install') {
+            await offerOneLinerInstall();
+            await renderPanel(panel, 'booting');
+            await waitForBrainstem(currentPort(), 120000);
+            await renderPanel(panel);
+        } else if (msg?.type === 'open') {
+            await vscode.env.openExternal(vscode.Uri.parse(brainstemUrl()));
+        } else if (msg?.type === 'recheck') {
+            await renderPanel(panel);
+        }
+    });
+    await renderPanel(panel);
+    return panel;
+}
+
+export async function refreshBrainstemPanel(): Promise<void> {
+    if (panel) await renderPanel(panel);
+}
+
+function currentPort(): number {
+    return vscode.workspace.getConfiguration('rappBrainstem').get<number>('port', 7071);
+}
+
+function brainstemUrl(): string {
+    return `http://localhost:${currentPort()}`;
+}
+
+async function renderPanel(p: vscode.WebviewPanel, force?: 'booting'): Promise<void> {
+    const url = brainstemUrl();
+    if (force === 'booting') {
+        p.webview.html = bootingShell(url);
+        return;
+    }
+    const up = await probeBrainstem(currentPort());
+    p.webview.html = up ? embedShell(url) : downShell(url);
 }
 
 function embedShell(url: string): string {
@@ -41,10 +82,25 @@ function embedShell(url: string): string {
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: var(--vscode-editor-background); }
     iframe { border: 0; width: 100%; height: 100vh; display: block; }
+    #reload {
+      position: fixed; top: 8px; right: 8px; z-index: 999;
+      background: rgba(30,30,30,.85); color: #eee;
+      border: 1px solid #444; padding: 4px 10px; border-radius: 6px;
+      font: 12px -apple-system, sans-serif; cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+    #reload:hover { background: rgba(60,60,60,.9); }
   </style>
 </head>
 <body>
-  <iframe src="${url}" allow="clipboard-read; clipboard-write; microphone"></iframe>
+  <iframe id="frame" src="${url}" allow="clipboard-read; clipboard-write; microphone"></iframe>
+  <button id="reload" title="Reload brainstem UI">↻</button>
+  <script>
+    document.getElementById('reload').addEventListener('click', () => {
+      const f = document.getElementById('frame');
+      f.src = f.src;
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -72,6 +128,7 @@ function downShell(url: string): string {
 <h3>Brainstem isn't running</h3>
 <p>Nothing is listening on <code>${url}</code>.</p>
 <button id="boot">Boot brainstem</button>
+<button id="install" class="secondary">Install via one-liner</button>
 <button id="recheck" class="secondary">Recheck</button>
 <p style="margin-top:24px; opacity:.7; font-size:12px;">
   Or run <code>./start.sh</code> in <code>rapp_brainstem/</code> yourself.
@@ -79,6 +136,7 @@ function downShell(url: string): string {
 <script>
   const vs = acquireVsCodeApi();
   document.getElementById('boot').addEventListener('click', () => vs.postMessage({ type: 'boot' }));
+  document.getElementById('install').addEventListener('click', () => vs.postMessage({ type: 'install' }));
   document.getElementById('recheck').addEventListener('click', () => vs.postMessage({ type: 'recheck' }));
 </script>
 `);
@@ -94,7 +152,8 @@ function wrapMessage(inner: string): string {
       font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--vscode-editor-foreground);
       background: var(--vscode-editor-background);
-      padding: 24px; text-align: center;
+      padding: 64px 24px; text-align: center;
+      max-width: 560px; margin: 0 auto;
     }
     button {
       background: var(--vscode-button-background, #0e639c);
@@ -144,3 +203,4 @@ async function waitForBrainstem(port: number, timeoutMs: number): Promise<boolea
     }
     return false;
 }
+

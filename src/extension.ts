@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { HtmlPreviewProvider } from './htmlPreviewProvider';
 import { MarkdownPreviewProvider } from './markdownPreviewProvider';
-import { BrainstemViewProvider } from './brainstemView';
 import { bootBrainstem, offerOneLinerInstall } from './brainstemBoot';
+import { initBrainstemPanel, openBrainstemPanel, refreshBrainstemPanel } from './brainstemPanel';
 import { TwinTreeProvider, asTwin } from './twinTreeProvider';
 import { openTwinPanel, refreshTwinPanel } from './twinWebviewManager';
 import {
@@ -12,6 +12,8 @@ import {
 import { Twin } from './twinRegistry';
 
 export function activate(context: vscode.ExtensionContext) {
+    initBrainstemPanel(context.extensionUri);
+
     const twinTree = new TwinTreeProvider();
     context.subscriptions.push({ dispose: () => twinTree.dispose() });
 
@@ -19,18 +21,27 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.workspace.getConfiguration('rappBrainstem').get<number>('port', 7071);
 
     const requireGlobalBrainstem = async (): Promise<boolean> => {
-        if (await probeLocalPort(globalPort())) return true;
+        if (await probeLocalPort(globalPort())) {
+            void openBrainstemPanel({ preserveFocus: true });
+            return true;
+        }
         const choice = await vscode.window.showWarningMessage(
             `Global brainstem not running on :${globalPort()}.`,
             'Boot now', 'Install via one-liner', 'Cancel'
         );
         if (choice === 'Boot now') {
             await bootBrainstem();
-            return await waitForPort(globalPort(), 45000);
+            const up = await waitForPort(globalPort(), 45000);
+            if (up) void openBrainstemPanel({ preserveFocus: true });
+            await refreshBrainstemPanel();
+            return up;
         }
         if (choice === 'Install via one-liner') {
             await offerOneLinerInstall();
-            return await waitForPort(globalPort(), 120000);
+            const up = await waitForPort(globalPort(), 120000);
+            if (up) void openBrainstemPanel({ preserveFocus: true });
+            await refreshBrainstemPanel();
+            return up;
         }
         return false;
     };
@@ -45,10 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
             'rappBrainstem.markdownPreview',
             new MarkdownPreviewProvider(),
             { webviewOptions: { retainContextWhenHidden: true } }
-        ),
-        vscode.window.registerWebviewViewProvider(
-            'rappBrainstem.brainstemView',
-            new BrainstemViewProvider()
         ),
         vscode.window.registerTreeDataProvider('rappBrainstem.twinTree', twinTree),
 
@@ -68,6 +75,9 @@ export function activate(context: vscode.ExtensionContext) {
                 ? 'rappBrainstem.markdownPreview'
                 : 'rappBrainstem.htmlPreview';
             await vscode.commands.executeCommand('vscode.openWith', target, editorId);
+        }),
+        vscode.commands.registerCommand('rappBrainstem.openBrainstem', async () => {
+            await openBrainstemPanel();
         }),
         vscode.commands.registerCommand('rappBrainstem.bootBrainstem', () => bootBrainstem()),
         vscode.commands.registerCommand('rappBrainstem.installBrainstem', () => offerOneLinerInstall()),
